@@ -1,0 +1,835 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VulnTrack Lite - Security Vulnerability Dashboard</title>
+    <!-- Inter Font -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        slate: {
+                            950: '#0b0f19',
+                            900: '#111827',
+                            800: '#1f2937',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Custom CSS for custom animations and styles -->
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #05070c;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: scale(0.97); }
+            to { opacity: 1; transform: scale(1); }
+        }
+        @keyframes slideIn {
+            from { transform: translateY(1rem); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        .animate-fade-in {
+            animation: fadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+        .animate-slide-in {
+            animation: slideIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+        .glass-panel {
+            background: rgba(17, 24, 39, 0.7);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+        }
+        .glow-card:hover {
+            box-shadow: 0 0 20px rgba(99, 102, 241, 0.15);
+            border-color: rgba(99, 102, 241, 0.3);
+        }
+        .custom-select-menu {
+            box-shadow: 0 18px 45px rgba(0, 0, 0, 0.45);
+            transform-origin: top;
+        }
+        .custom-select-menu:not(.hidden) {
+            animation: slideIn 0.16s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+        .custom-select-option[aria-selected="true"] {
+            background: rgba(79, 70, 229, 0.22);
+            color: #fff;
+        }
+        .custom-select-option[aria-selected="true"] .option-check {
+            opacity: 1;
+        }
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(11, 15, 25, 0.5);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(75, 85, 99, 0.5);
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(156, 163, 175, 0.8);
+        }
+    </style>
+</head>
+<body class="text-slate-100 min-h-screen flex flex-col antialiased">
+
+    <!-- Header Navigation -->
+    <header class="border-b border-slate-800 bg-slate-900/80 sticky top-0 z-40 backdrop-blur-md">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <div class="p-2 bg-indigo-600/20 border border-indigo-500/30 rounded-lg text-indigo-400">
+                    <i data-lucide="shield-alert" class="w-6 h-6"></i>
+                </div>
+                <div>
+                    <h1 class="text-lg font-bold tracking-tight text-white flex items-center">
+                        VulnTrack<span class="text-indigo-400 font-medium ml-1">Lite</span>
+                    </h1>
+                    <p class="text-xs text-slate-400">Security Vulnerability Tracker</p>
+                </div>
+            </div>
+
+            <!-- Header Operations -->
+            <div class="flex items-center space-x-3">
+                <button onclick="openAddModal()" class="flex items-center space-x-2 px-4 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm font-semibold transition duration-200 shadow-lg shadow-indigo-600/20 cursor-pointer">
+                    <i data-lucide="plus" class="w-4 h-4"></i>
+                    <span>Add Vulnerability</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="flex-grow max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+        
+        <!-- Metrics Overview Grid -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+            <!-- Total Card -->
+            <div class="glass-panel glow-card p-5 rounded-2xl transition duration-300 flex items-center justify-between">
+                <div class="space-y-1">
+                    <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Total Active</p>
+                    <h3 id="metric-total" class="text-3xl font-extrabold text-white">0</h3>
+                    <p class="text-xs text-slate-500">Tracked Vulnerabilities</p>
+                </div>
+                <div class="p-3 bg-indigo-500/10 text-indigo-400 rounded-xl">
+                    <i data-lucide="database" class="w-6 h-6"></i>
+                </div>
+            </div>
+
+            <!-- Critical Card -->
+            <div class="glass-panel glow-card p-5 rounded-2xl transition duration-300 flex items-center justify-between">
+                <div class="space-y-1">
+                    <p class="text-xs font-semibold text-rose-400 uppercase tracking-wider">Critical</p>
+                    <h3 id="metric-critical" class="text-3xl font-extrabold text-rose-500">0</h3>
+                    <p class="text-xs text-slate-500">CVSS Score 9.0 - 10.0</p>
+                </div>
+                <div class="p-3 bg-rose-500/10 text-rose-400 rounded-xl">
+                    <i data-lucide="flame" class="w-6 h-6"></i>
+                </div>
+            </div>
+
+            <!-- High Card -->
+            <div class="glass-panel glow-card p-5 rounded-2xl transition duration-300 flex items-center justify-between">
+                <div class="space-y-1">
+                    <p class="text-xs font-semibold text-amber-400 uppercase tracking-wider">High</p>
+                    <h3 id="metric-high" class="text-3xl font-extrabold text-amber-500">0</h3>
+                    <p class="text-xs text-slate-500">CVSS Score 7.0 - 8.9</p>
+                </div>
+                <div class="p-3 bg-amber-500/10 text-amber-400 rounded-xl">
+                    <i data-lucide="alert-triangle" class="w-6 h-6"></i>
+                </div>
+            </div>
+
+            <!-- Medium / Low Card -->
+            <div class="glass-panel glow-card p-5 rounded-2xl transition duration-300 flex items-center justify-between">
+                <div class="space-y-1">
+                    <p class="text-xs font-semibold text-sky-400 uppercase tracking-wider">Medium / Low</p>
+                    <h3 id="metric-medium-low" class="text-3xl font-extrabold text-sky-400">0</h3>
+                    <p class="text-xs text-slate-500">CVSS Score 0.0 - 6.9</p>
+                </div>
+                <div class="p-3 bg-sky-500/10 text-sky-400 rounded-xl">
+                    <i data-lucide="shield-info" class="w-6 h-6"></i>
+                </div>
+            </div>
+        </div>
+
+        <!-- Filter & Control Section -->
+        <div class="glass-panel p-5 rounded-2xl space-y-4">
+            <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                <!-- Search & Severity filter -->
+                <div class="flex flex-col sm:flex-row gap-3 flex-grow lg:max-w-3xl">
+                    <!-- Search Input -->
+                    <div class="relative flex-grow">
+                        <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                            <i data-lucide="search" class="w-4 h-4"></i>
+                        </span>
+                        <input id="search-input" oninput="handleSearch()" type="text" placeholder="Search by CVE ID or keyword..." 
+                            class="w-full pl-10 pr-4 py-2 bg-slate-900 border border-slate-700 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-xl text-sm placeholder-slate-500 text-white outline-none transition duration-200">
+                    </div>
+                    
+                    <!-- Filter Button Group -->
+                    <div class="flex p-1 bg-slate-950 border border-slate-800 rounded-xl self-start sm:self-auto">
+                        <button onclick="setFilter('All')" id="filter-all" class="px-4 py-1.5 rounded-lg text-xs font-medium transition cursor-pointer bg-indigo-600 text-white shadow-sm">All</button>
+                        <button onclick="setFilter('Critical')" id="filter-critical" class="px-4 py-1.5 rounded-lg text-xs font-medium transition cursor-pointer text-slate-400 hover:text-white">Critical</button>
+                        <button onclick="setFilter('High')" id="filter-high" class="px-4 py-1.5 rounded-lg text-xs font-medium transition cursor-pointer text-slate-400 hover:text-white">High</button>
+                        <button onclick="setFilter('Medium')" id="filter-medium" class="px-4 py-1.5 rounded-lg text-xs font-medium transition cursor-pointer text-slate-400 hover:text-white">Medium</button>
+                        <button onclick="setFilter('Low')" id="filter-low" class="px-4 py-1.5 rounded-lg text-xs font-medium transition cursor-pointer text-slate-400 hover:text-white">Low</button>
+                    </div>
+                </div>
+
+                <!-- Database operations -->
+                <div class="flex items-center space-x-3">
+                    <button onclick="clearDatabase()" class="flex items-center space-x-1.5 px-3 py-2 bg-rose-500/10 hover:bg-rose-500/25 border border-rose-500/20 text-rose-400 rounded-xl text-xs font-semibold transition cursor-pointer">
+                        <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                        <span>Clear Database</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Vulnerabilities List / Table Container -->
+        <div class="glass-panel rounded-2xl overflow-hidden shadow-2xl animate-slide-in">
+            <div class="overflow-x-auto">
+                <table class="w-full border-collapse text-left">
+                    <thead>
+                        <tr class="border-b border-slate-800 bg-slate-900/60 text-slate-400 text-xs font-semibold uppercase tracking-wider">
+                            <th class="py-4 px-6">CVE ID</th>
+                            <th class="py-4 px-6">Title</th>
+                            <th class="py-4 px-6">Severity</th>
+                            <th class="py-4 px-6">Score</th>
+                            <th class="py-4 px-6 text-right">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="vulnerabilities-list" class="divide-y divide-slate-800/60">
+                        <!-- Loaded dynamically -->
+                        <tr>
+                            <td colspan="5" class="py-12 text-center text-slate-400">
+                                <div class="flex flex-col items-center justify-center space-y-3">
+                                    <div class="animate-spin text-indigo-400">
+                                        <i data-lucide="loader" class="w-8 h-8"></i>
+                                    </div>
+                                    <p class="text-sm">Fetching vulnerabilities...</p>
+                                </div>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            
+            <!-- Table Footer -->
+            <div class="py-4 px-6 border-t border-slate-800 bg-slate-900/30 flex items-center justify-between text-xs text-slate-400">
+                <div id="table-showing-text">Showing 0 vulnerabilities</div>
+                <div class="flex items-center space-x-2">
+                    <span class="inline-block w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                    <span>Database Connection Active</span>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="mt-auto border-t border-slate-800 py-6 bg-slate-900/20 text-center text-xs text-slate-500">
+        <p>&copy; 2026 VulnTrack Lite. Built for fast, lightweight vulnerability cataloging.</p>
+    </footer>
+
+    <!-- Add Vulnerability Modal -->
+    <div id="add-modal" class="fixed inset-0 z-50 overflow-y-auto hidden" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+        <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+            <!-- Overlay -->
+            <div onclick="closeAddModal()" class="fixed inset-0 bg-black/70 backdrop-blur-sm transition-opacity" aria-hidden="true"></div>
+            <!-- Center alignment element -->
+            <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+            
+            <!-- Modal Body -->
+            <div class="inline-block align-bottom bg-slate-900 border border-slate-800 text-left rounded-2xl overflow-hidden shadow-2xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full animate-fade-in">
+                <div class="px-6 py-5 border-b border-slate-800 flex justify-between items-center">
+                    <h3 class="text-base font-bold text-white flex items-center space-x-2">
+                        <i data-lucide="shield-alert" class="w-5 h-5 text-indigo-400"></i>
+                        <span>Add New Vulnerability</span>
+                    </h3>
+                    <button onclick="closeAddModal()" class="text-slate-400 hover:text-white transition cursor-pointer">
+                        <i data-lucide="x" class="w-5 h-5"></i>
+                    </button>
+                </div>
+                
+                <form id="add-vuln-form" onsubmit="handleAddSubmit(event)" class="px-6 py-4 space-y-4">
+                    <!-- CVE ID -->
+                    <div>
+                        <label for="form-cve" class="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">CVE ID</label>
+                        <input type="text" id="form-cve" required placeholder="CVE-2026-1234" pattern="^CVE-\d{4}-\d{4,7}$"
+                            class="w-full px-3.5 py-2 bg-slate-950 border border-slate-700 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-xl text-sm placeholder-slate-600 text-white outline-none transition">
+                        <p class="text-[10px] text-slate-500 mt-1">Must match pattern CVE-YYYY-NNNNNNN (e.g. CVE-2026-9923)</p>
+                    </div>
+
+                    <!-- Title -->
+                    <div>
+                        <label for="form-title" class="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">Title</label>
+                        <input type="text" id="form-title" required placeholder="Buffer overflow in HTTP parser" minlength="3" maxlength="100"
+                            class="w-full px-3.5 py-2 bg-slate-950 border border-slate-700 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-xl text-sm placeholder-slate-600 text-white outline-none transition">
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4">
+                        <!-- Severity -->
+                        <div>
+                            <label id="form-severity-label" class="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">Severity</label>
+                            <input type="hidden" id="form-severity" value="Medium" required>
+                            <div id="severity-select" class="relative">
+                                <button type="button" id="severity-trigger" onclick="toggleSeveritySelect()" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="form-severity-label severity-selected"
+                                    class="w-full px-3.5 py-2 bg-slate-950 border border-slate-700 hover:border-slate-600 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-xl text-sm text-white outline-none transition flex items-center justify-between gap-3 cursor-pointer">
+                                    <span class="flex items-center gap-2 min-w-0">
+                                        <span id="severity-selected-dot" class="w-2 h-2 rounded-full bg-yellow-400"></span>
+                                        <span id="severity-selected" class="truncate">Medium</span>
+                                    </span>
+                                    <i data-lucide="chevron-down" class="w-4 h-4 text-slate-400 shrink-0"></i>
+                                </button>
+                                <div id="severity-options" role="listbox" aria-labelledby="form-severity-label" tabindex="-1"
+                                    class="custom-select-menu hidden absolute z-50 mt-2 w-full overflow-hidden rounded-xl border border-slate-700 bg-slate-950 p-1 text-sm text-slate-200">
+                                    <button type="button" role="option" aria-selected="false" data-value="Low" onclick="setCustomSeverity('Low')" class="custom-select-option w-full rounded-lg px-3 py-2 text-left transition hover:bg-slate-800 flex items-center justify-between gap-3 cursor-pointer">
+                                        <span class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-emerald-400"></span><span>Low</span></span>
+                                        <span class="flex items-center gap-2 text-xs text-slate-500"><span>0.0-3.9</span><i data-lucide="check" class="option-check opacity-0 w-3.5 h-3.5 text-indigo-300"></i></span>
+                                    </button>
+                                    <button type="button" role="option" aria-selected="true" data-value="Medium" onclick="setCustomSeverity('Medium')" class="custom-select-option w-full rounded-lg px-3 py-2 text-left transition hover:bg-slate-800 flex items-center justify-between gap-3 cursor-pointer">
+                                        <span class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-yellow-400"></span><span>Medium</span></span>
+                                        <span class="flex items-center gap-2 text-xs text-slate-500"><span>4.0-6.9</span><i data-lucide="check" class="option-check opacity-0 w-3.5 h-3.5 text-indigo-300"></i></span>
+                                    </button>
+                                    <button type="button" role="option" aria-selected="false" data-value="High" onclick="setCustomSeverity('High')" class="custom-select-option w-full rounded-lg px-3 py-2 text-left transition hover:bg-slate-800 flex items-center justify-between gap-3 cursor-pointer">
+                                        <span class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-amber-400"></span><span>High</span></span>
+                                        <span class="flex items-center gap-2 text-xs text-slate-500"><span>7.0-8.9</span><i data-lucide="check" class="option-check opacity-0 w-3.5 h-3.5 text-indigo-300"></i></span>
+                                    </button>
+                                    <button type="button" role="option" aria-selected="false" data-value="Critical" onclick="setCustomSeverity('Critical')" class="custom-select-option w-full rounded-lg px-3 py-2 text-left transition hover:bg-slate-800 flex items-center justify-between gap-3 cursor-pointer">
+                                        <span class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-rose-400"></span><span>Critical</span></span>
+                                        <span class="flex items-center gap-2 text-xs text-slate-500"><span>9.0-10.0</span><i data-lucide="check" class="option-check opacity-0 w-3.5 h-3.5 text-indigo-300"></i></span>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Score -->
+                        <div>
+                            <label for="form-score" class="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">CVSS Score</label>
+                            <input type="number" id="form-score" required step="0.1" min="0.0" max="10.0" placeholder="5.0"
+                                class="w-full px-3.5 py-2 bg-slate-950 border border-slate-700 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-xl text-sm text-white outline-none transition">
+                            <p class="text-[10px] text-slate-500 mt-1">Value between 0.0 and 10.0</p>
+                        </div>
+                    </div>
+
+                    <!-- Description -->
+                    <div>
+                        <label for="form-desc" class="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">Description</label>
+                        <textarea id="form-desc" required minlength="10" maxlength="1000" rows="3" placeholder="Provide a details-rich summary of the vulnerability impact and execution pathway..."
+                            class="w-full px-3.5 py-2 bg-slate-950 border border-slate-700 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-xl text-sm placeholder-slate-600 text-white outline-none transition resize-none"></textarea>
+                    </div>
+
+                    <!-- Submit -->
+                    <div class="pt-3 flex justify-end space-x-3">
+                        <button type="button" onclick="closeAddModal()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-600 rounded-xl text-xs font-semibold text-slate-300 transition cursor-pointer">
+                            Cancel
+                        </button>
+                        <button type="submit" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-semibold transition shadow-md shadow-indigo-600/20 cursor-pointer">
+                            Submit Vulnerability
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- View Vulnerability Details Modal -->
+    <div id="detail-modal" class="fixed inset-0 z-50 overflow-y-auto hidden" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+        <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+            <!-- Overlay -->
+            <div onclick="closeDetailModal()" class="fixed inset-0 bg-black/70 backdrop-blur-sm transition-opacity" aria-hidden="true"></div>
+            <!-- Center alignment element -->
+            <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+            
+            <!-- Modal Body -->
+            <div class="inline-block align-bottom bg-slate-900 border border-slate-800 text-left rounded-2xl overflow-hidden shadow-2xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full animate-fade-in">
+                <div class="px-6 py-5 border-b border-slate-800 flex justify-between items-center">
+                    <h3 id="detail-cve" class="text-base font-extrabold text-white flex items-center space-x-2">
+                        <!-- Loaded Dynamically -->
+                    </h3>
+                    <button onclick="closeDetailModal()" class="text-slate-400 hover:text-white transition cursor-pointer">
+                        <i data-lucide="x" class="w-5 h-5"></i>
+                    </button>
+                </div>
+                
+                <div class="px-6 py-5 space-y-6">
+                    <!-- Title -->
+                    <div>
+                        <h4 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Vulnerability Title</h4>
+                        <p id="detail-title" class="text-base font-bold text-white"></p>
+                    </div>
+
+                    <!-- Metrics Group -->
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <h4 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Severity</h4>
+                            <div id="detail-severity-badge"></div>
+                        </div>
+                        <div>
+                            <h4 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">CVSS Base Score</h4>
+                            <p id="detail-score" class="text-lg font-extrabold"></p>
+                        </div>
+                    </div>
+
+                    <!-- Description -->
+                    <div class="p-4 bg-slate-950 border border-slate-800 rounded-xl">
+                        <h4 class="text-xs font-semibold text-indigo-400 uppercase tracking-wider mb-2 flex items-center space-x-1.5">
+                            <i data-lucide="align-left" class="w-3.5 h-3.5"></i>
+                            <span>Detailed Description</span>
+                        </h4>
+                        <p id="detail-desc" class="text-sm text-slate-300 leading-relaxed whitespace-pre-wrap"></p>
+                    </div>
+                </div>
+
+                <div class="px-6 py-4 bg-slate-950 border-t border-slate-850 flex justify-end">
+                    <button onclick="closeDetailModal()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-600 rounded-xl text-xs font-semibold text-slate-300 transition cursor-pointer">
+                        Close Details
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notifications Container -->
+    <div id="toast-container" class="fixed bottom-5 right-5 z-50 flex flex-col space-y-2 pointer-events-none max-w-sm w-full"></div>
+
+    <!-- UI Logic Script -->
+    <script>
+        let allVulnerabilities = [];
+        let currentFilter = 'All';
+        let searchQuery = '';
+
+        // Load initially
+        document.addEventListener('DOMContentLoaded', () => {
+            fetchVulnerabilities();
+            initCustomSelects();
+            document.addEventListener('click', handleDocumentClick);
+            document.addEventListener('keydown', (event) => {
+                if (event.key === 'Escape') closeSeveritySelect();
+            });
+        });
+
+        async function fetchVulnerabilities() {
+            try {
+                const response = await fetch('/api/vulnerabilities');
+                if (!response.ok) {
+                    throw new Error('Failed to fetch vulnerabilities');
+                }
+                allVulnerabilities = await response.json();
+                updateMetrics();
+                renderTable();
+            } catch (error) {
+                console.error(error);
+                showToast('Error fetching data from server.', 'error');
+            }
+        }
+
+        function updateMetrics() {
+            const total = allVulnerabilities.length;
+            const critical = allVulnerabilities.filter(v => v.severity === 'Critical').length;
+            const high = allVulnerabilities.filter(v => v.severity === 'High').length;
+            const mediumLow = allVulnerabilities.filter(v => v.severity === 'Medium' || v.severity === 'Low').length;
+
+            document.getElementById('metric-total').textContent = total;
+            document.getElementById('metric-critical').textContent = critical;
+            document.getElementById('metric-high').textContent = high;
+            document.getElementById('metric-medium-low').textContent = mediumLow;
+        }
+
+        function renderTable() {
+            const listContainer = document.getElementById('vulnerabilities-list');
+            
+            // Filter by severity
+            let filtered = allVulnerabilities;
+            if (currentFilter !== 'All') {
+                filtered = filtered.filter(v => v.severity === currentFilter);
+            }
+
+            // Filter by search query
+            if (searchQuery.trim() !== '') {
+                const query = searchQuery.toLowerCase();
+                filtered = filtered.filter(v => 
+                    v.cve_id.toLowerCase().includes(query) ||
+                    v.title.toLowerCase().includes(query) ||
+                    v.description.toLowerCase().includes(query)
+                );
+            }
+
+            document.getElementById('table-showing-text').textContent = `Showing ${filtered.length} of ${allVulnerabilities.length} vulnerabilities`;
+
+            if (filtered.length === 0) {
+                listContainer.innerHTML = `
+                    <tr>
+                        <td colspan="5" class="py-12 text-center text-slate-400">
+                            <div class="flex flex-col items-center justify-center space-y-2">
+                                <i data-lucide="search-code" class="w-8 h-8 text-slate-600"></i>
+                                <p class="text-sm font-medium">No vulnerabilities found</p>
+                                <p class="text-xs text-slate-500">Log a new vulnerability to get started.</p>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+                lucide.createIcons();
+                return;
+            }
+
+            let rowsHtml = '';
+            filtered.forEach(vuln => {
+                let severityBadgeClass = '';
+                if (vuln.severity === 'Critical') {
+                    severityBadgeClass = 'bg-rose-500/10 text-rose-400 border border-rose-500/20';
+                } else if (vuln.severity === 'High') {
+                    severityBadgeClass = 'bg-amber-500/10 text-amber-400 border border-amber-500/20';
+                } else if (vuln.severity === 'Medium') {
+                    severityBadgeClass = 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20';
+                } else {
+                    severityBadgeClass = 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20';
+                }
+
+                let scoreBadgeClass = '';
+                if (vuln.score >= 9.0) {
+                    scoreBadgeClass = 'text-rose-500 bg-rose-500/5';
+                } else if (vuln.score >= 7.0) {
+                    scoreBadgeClass = 'text-amber-500 bg-amber-500/5';
+                } else if (vuln.score >= 4.0) {
+                    scoreBadgeClass = 'text-yellow-500 bg-yellow-500/5';
+                } else {
+                    scoreBadgeClass = 'text-emerald-500 bg-emerald-500/5';
+                }
+
+                rowsHtml += `
+                    <tr class="hover:bg-slate-900/30 transition duration-150">
+                        <td class="py-3.5 px-6 font-mono text-sm text-indigo-400 font-semibold">${escapeHtml(vuln.cve_id)}</td>
+                        <td class="py-3.5 px-6 text-sm text-white font-medium max-w-xs truncate" title="${escapeHtml(vuln.title)}">${escapeHtml(vuln.title)}</td>
+                        <td class="py-3.5 px-6">
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold tracking-wide ${severityBadgeClass}">
+                                ${vuln.severity}
+                            </span>
+                        </td>
+                        <td class="py-3.5 px-6">
+                            <span class="inline-flex items-center justify-center font-bold px-2 py-0.5 rounded text-sm ${scoreBadgeClass}">
+                                ${vuln.score.toFixed(1)}
+                            </span>
+                        </td>
+                        <td class="py-3.5 px-6 text-right">
+                            <button onclick="openDetailModal('${escapeHtml(vuln.cve_id)}')" class="inline-flex items-center space-x-1 px-3 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-600 text-slate-300 hover:text-white rounded-lg text-xs font-medium transition cursor-pointer">
+                                <i data-lucide="eye" class="w-3.5 h-3.5"></i>
+                                <span>Inspect</span>
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            });
+
+            listContainer.innerHTML = rowsHtml;
+            lucide.createIcons();
+        }
+
+        // Filters Handling
+        function setFilter(filter) {
+            currentFilter = filter;
+            const buttons = ['All', 'Critical', 'High', 'Medium', 'Low'];
+            buttons.forEach(b => {
+                const btn = document.getElementById(`filter-${b.toLowerCase()}`);
+                if (b === filter) {
+                    btn.className = "px-4 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer bg-indigo-600 text-white shadow-sm";
+                } else {
+                    btn.className = "px-4 py-1.5 rounded-lg text-xs font-medium transition cursor-pointer text-slate-400 hover:text-white";
+                }
+            });
+            renderTable();
+        }
+
+        function handleSearch() {
+            searchQuery = document.getElementById('search-input').value;
+            renderTable();
+        }
+
+        function initCustomSelects() {
+            setCustomSeverity(document.getElementById('form-severity').value || 'Medium', false);
+            const trigger = document.getElementById('severity-trigger');
+            trigger.addEventListener('keydown', (event) => {
+                if (event.key === 'ArrowDown' || event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    openSeveritySelect();
+                    focusSelectedSeverityOption();
+                }
+            });
+            document.getElementById('severity-options').addEventListener('keydown', handleSeverityOptionsKeydown);
+        }
+
+        function toggleSeveritySelect() {
+            const menu = document.getElementById('severity-options');
+            if (menu.classList.contains('hidden')) openSeveritySelect();
+            else closeSeveritySelect();
+        }
+
+        function openSeveritySelect() {
+            const menu = document.getElementById('severity-options');
+            const trigger = document.getElementById('severity-trigger');
+            menu.classList.remove('hidden');
+            trigger.setAttribute('aria-expanded', 'true');
+            lucide.createIcons();
+        }
+
+        function closeSeveritySelect() {
+            const menu = document.getElementById('severity-options');
+            const trigger = document.getElementById('severity-trigger');
+            if (!menu || !trigger) return;
+            menu.classList.add('hidden');
+            trigger.setAttribute('aria-expanded', 'false');
+        }
+
+        function handleDocumentClick(event) {
+            const select = document.getElementById('severity-select');
+            if (select && !select.contains(event.target)) closeSeveritySelect();
+        }
+
+        function setCustomSeverity(value, shouldSuggestScore = true) {
+            const input = document.getElementById('form-severity');
+            const selected = document.getElementById('severity-selected');
+            const dot = document.getElementById('severity-selected-dot');
+            input.value = value;
+            selected.textContent = value;
+            dot.className = `w-2 h-2 rounded-full ${severityOptionStyles[value] || severityOptionStyles.Medium}`;
+
+            document.querySelectorAll('#severity-options [role="option"]').forEach(option => {
+                option.setAttribute('aria-selected', String(option.dataset.value === value));
+            });
+
+            closeSeveritySelect();
+            if (shouldSuggestScore) suggestScore();
+            lucide.createIcons();
+        }
+
+        function focusSelectedSeverityOption() {
+            const current = document.getElementById('form-severity').value;
+            const option = document.querySelector(`#severity-options [data-value="${current}"]`);
+            if (option) option.focus();
+        }
+
+        function handleSeverityOptionsKeydown(event) {
+            const options = Array.from(document.querySelectorAll('#severity-options [role="option"]'));
+            const currentIndex = options.indexOf(document.activeElement);
+            if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+                event.preventDefault();
+                const direction = event.key === 'ArrowDown' ? 1 : -1;
+                const nextIndex = (currentIndex + direction + options.length) % options.length;
+                options[nextIndex].focus();
+            } else if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                document.activeElement.click();
+                document.getElementById('severity-trigger').focus();
+            } else if (event.key === 'Escape') {
+                closeSeveritySelect();
+                document.getElementById('severity-trigger').focus();
+            }
+        }
+
+        // Add Modal Handling
+        function openAddModal() {
+            document.getElementById('add-modal').classList.remove('hidden');
+            suggestScore();
+        }
+
+        function closeAddModal() {
+            document.getElementById('add-modal').classList.add('hidden');
+            document.getElementById('add-vuln-form').reset();
+            setCustomSeverity('Medium', false);
+        }
+
+        function suggestScore() {
+            const severity = document.getElementById('form-severity').value;
+            const scoreField = document.getElementById('form-score');
+            if (severity === 'Critical') {
+                scoreField.placeholder = "9.8";
+                scoreField.value = "9.5";
+            } else if (severity === 'High') {
+                scoreField.placeholder = "8.5";
+                scoreField.value = "8.0";
+            } else if (severity === 'Medium') {
+                scoreField.placeholder = "5.5";
+                scoreField.value = "5.0";
+            } else {
+                scoreField.placeholder = "2.5";
+                scoreField.value = "2.0";
+            }
+        }
+
+        async function handleAddSubmit(event) {
+            event.preventDefault();
+            const cve_id = document.getElementById('form-cve').value.trim();
+            const title = document.getElementById('form-title').value.trim();
+            const severity = document.getElementById('form-severity').value;
+            const score = parseFloat(document.getElementById('form-score').value);
+            const description = document.getElementById('form-desc').value.trim();
+
+            if (severity === 'Critical' && score < 9.0) {
+                showToast('Critical severity CVSS score must be between 9.0 and 10.0', 'error');
+                return;
+            } else if (severity === 'High' && (score < 7.0 || score > 8.9)) {
+                showToast('High severity CVSS score must be between 7.0 and 8.9', 'error');
+                return;
+            } else if (severity === 'Medium' && (score < 4.0 || score > 6.9)) {
+                showToast('Medium severity CVSS score must be between 4.0 and 6.9', 'error');
+                return;
+            } else if (severity === 'Low' && (score < 0.0 || score > 3.9)) {
+                showToast('Low severity CVSS score must be between 0.0 and 3.9', 'error');
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/vulnerabilities', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ cve_id, title, severity, score, description })
+                });
+
+                if (!response.ok) {
+                    const err = await response.json();
+                    throw new Error(err.detail || 'Failed to save vulnerability');
+                }
+
+                showToast(`Successfully created ${cve_id}`, 'success');
+                closeAddModal();
+                fetchVulnerabilities();
+            } catch (error) {
+                showToast(error.message, 'error');
+            }
+        }
+
+        // Details Modal Handling
+        function openDetailModal(cveId) {
+            const vuln = allVulnerabilities.find(v => v.cve_id === cveId);
+            if (!vuln) return;
+
+            document.getElementById('detail-cve').innerHTML = `
+                <i data-lucide="shield-alert" class="w-5 h-5 text-indigo-400"></i>
+                <span>${escapeHtml(vuln.cve_id)}</span>
+            `;
+            document.getElementById('detail-title').textContent = vuln.title;
+            document.getElementById('detail-score').textContent = vuln.score.toFixed(1);
+            document.getElementById('detail-desc').textContent = vuln.description;
+
+            const scoreVal = vuln.score;
+            let scoreClass = 'text-emerald-400';
+            if (scoreVal >= 9.0) scoreClass = 'text-rose-500';
+            else if (scoreVal >= 7.0) scoreClass = 'text-amber-500';
+            else if (scoreVal >= 4.0) scoreClass = 'text-yellow-500';
+            
+            document.getElementById('detail-score').className = `text-3xl font-extrabold ${scoreClass}`;
+
+            let severityBadgeClass = '';
+            if (vuln.severity === 'Critical') {
+                severityBadgeClass = 'bg-rose-500/10 text-rose-400 border border-rose-500/20';
+            } else if (vuln.severity === 'High') {
+                severityBadgeClass = 'bg-amber-500/10 text-amber-400 border border-amber-500/20';
+            } else if (vuln.severity === 'Medium') {
+                severityBadgeClass = 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20';
+            } else {
+                severityBadgeClass = 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20';
+            }
+            document.getElementById('detail-severity-badge').innerHTML = `
+                <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold tracking-wide ${severityBadgeClass}">
+                    ${vuln.severity}
+                </span>
+            `;
+
+            document.getElementById('detail-modal').classList.remove('hidden');
+            lucide.createIcons();
+        }
+
+        function closeDetailModal() {
+            document.getElementById('detail-modal').classList.add('hidden');
+        }
+
+        // Clear Database
+        async function clearDatabase() {
+            if (!confirm('Are you sure you want to clear the vulnerabilities database?')) return;
+            try {
+                const response = await fetch('/api/clear', { method: 'POST' });
+                if (!response.ok) throw new Error('Clearing database failed');
+                
+                showToast('Database cleared successfully.', 'success');
+                fetchVulnerabilities();
+            } catch (error) {
+                showToast(error.message, 'error');
+            }
+        }
+
+        // Utility: escape html output
+        function escapeHtml(str) {
+            return str
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+
+        // Custom Toast System
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            
+            let bgClass = 'bg-slate-900 border-slate-800 text-slate-100';
+            let icon = 'info';
+            let iconClass = 'text-indigo-400';
+            
+            if (type === 'success') {
+                bgClass = 'bg-slate-900 border-emerald-500/30 text-slate-100';
+                icon = 'check-circle';
+                iconClass = 'text-emerald-400';
+            } else if (type === 'error') {
+                bgClass = 'bg-slate-900 border-rose-500/30 text-slate-100';
+                icon = 'x-circle';
+                iconClass = 'text-rose-400';
+            }
+
+            toast.className = `flex items-start space-x-3 p-4 border rounded-xl shadow-2xl pointer-events-auto transition duration-300 ease-in-out transform translate-y-2 opacity-0 animate-fade-in ${bgClass}`;
+            toast.innerHTML = `
+                <div class="${iconClass}">
+                    <i data-lucide="${icon}" class="w-5 h-5"></i>
+                </div>
+                <div class="flex-1">
+                    <p class="text-xs font-semibold">${escapeHtml(message)}</p>
+                </div>
+                <button class="text-slate-500 hover:text-slate-400 transition cursor-pointer" onclick="this.parentElement.remove()">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+            `;
+
+            container.appendChild(toast);
+            lucide.createIcons();
+            
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'translate-y-2');
+                setTimeout(() => {
+                    toast.remove();
+                }, 300);
+            }, 4000);
+        }
+    </script>
+</body>
+</html>
