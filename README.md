@@ -65,6 +65,17 @@ python run_tests.py
 
 ---
 
+## 🤝 Contributing
+
+This is a lightweight, zero-bloat project optimized for rapid testing. Contributions that improve efficiency or add standalone features are welcome!
+
+1. Fork the repository.
+2. Create a feature branch: `git checkout -b feature/amazing-feature`
+3. Ensure code uses minimal dependencies (stick to standard Python libraries and vanilla JS where possible).
+4. Commit your changes: `git commit -m 'Add some amazing feature'`
+5. Push to the branch: `git push origin feature/amazing-feature`
+6. Open a Pull Request.
+
 ## 📄 License
 
 This project is licensed under the terms of the MIT License. See [LICENSE](file:///C:/Users/personal/Documents/VulnTrack_Lite/LICENSE) for details.
