@@ -1,10 +1,10 @@
 # VulnTrack Lite: Threat Model
 
-Scope: `main` branch. Status: ✅ implemented · ⚠️ partial / documented gap · 🔲 planned.
+Scope: `main` branch (v1.0). Status: ✅ implemented · ⚠️ partial / documented gap · 🔲 planned.
 
 ## 1. Intended use and assumptions
 
-VulnTrack Lite is a **single-user, local** dashboard (FastAPI + SQLite + a vanilla-JS page). It has **no authentication or authorization by design**. It must run on `127.0.0.1` for one trusted operator. **Do not expose it to a network or the internet in its current form.** Every threat below is assessed under that assumption; the "if exposed" column shows what changes.
+VulnTrack Lite is a **single-user, local** dashboard (FastAPI + SQLite + a vanilla-JS page). It has **no authentication or authorization by design**. It must run on `127.0.0.1` for one trusted operator. **Do not expose it to a network or the internet in its current form.** Every threat below is assessed under that assumption. v1.0 adds optional token auth and refuses non-local binds without it, but it is still not a hardened multi-user service.
 
 ## 2. Assets
 
@@ -14,35 +14,41 @@ CVE records (`vulnerabilities` table in `vulntrack.db`) and the integrity of the
 
 | Route | Method | Notes |
 |---|---|---|
-| `/` | GET | Serves `index.html` |
-| `/api/vulnerabilities` | GET | Optional `severity` filter |
-| `/api/vulnerabilities` | POST | Create a record |
-| `/api/clear` | POST | Deletes every record |
+| `/`, `/static/*` | GET | Dashboard shell and vendored assets (public even when a token is set) |
+| `/api/vulnerabilities` | GET / POST / DELETE | List with filters, create, clear (needs confirm header) |
+| `/api/vulnerabilities/{cve}` | GET / DELETE | One record |
+| `/api/vulnerabilities/import` | POST | Outbound NVD fetch, then KEV/EPSS |
+| `/api/enrich` | POST | Outbound KEV + EPSS refresh |
+
+Outbound: `services.nvd.nist.gov`, `www.cisa.gov`, `api.first.org` only.
 
 ## 4. Controls and status
 
 | Threat | Control | Status | Evidence |
 |---|---|---|---|
-| SQL injection | All queries use `?` placeholders; the severity filter is also checked against an allowlist | ✅ | `main.py` |
-| Malformed input | Pydantic: CVE id regex `^CVE-\d{4}-\d{4,7}$`, title 3–100 chars, description 10–1000, score 0.0–10.0, severity allowlist | ✅ | `VulnerabilityCreate` |
-| Duplicate records | Primary key on `cve_id` plus explicit pre-check (returns 400) | ✅ | `add_vulnerability()` |
-| Stored XSS in the table | Table cells and toasts pass through `escapeHtml()` (`& < > " '`); detail view uses `textContent` | ✅ | `index.html` |
-| Inline-handler injection | `cve_id` is rendered into an `onclick` attribute after `escapeHtml()`; safe because the server only accepts the strict CVE pattern | ✅ | `index.html`, `main.py` |
-| Severity/score inconsistency | `severity` and `score` are independent client-supplied fields; nothing checks that the score matches the severity band or derives from a CVSS vector | ⚠️ | `VulnerabilityCreate` |
-| Information leakage | The POST error path returns `Database error: {str(e)}` to the client | ⚠️ | `add_vulnerability()` |
-| Unauthenticated destructive action | `POST /api/clear` wipes the database with no auth and no confirmation. Because it needs no body or custom header, a malicious web page could trigger it with a cross-site form POST while the app is running locally | ⚠️ | `clear_vulnerabilities()` |
-| Third-party script integrity | Tailwind CDN and `lucide@latest` are loaded from CDNs with no pinned version and no SRI; no CSP | ⚠️ | `index.html` |
-| Abuse / flooding | No rate limiting | 🔲 | n/a |
+| SQL injection | `?` placeholders everywhere; migration DDL is static constants; severity filter allowlisted | ✅ | `main.py`, `test_sqli_and_xss_payloads_are_inert` |
+| Malformed input | Pydantic: CVE regex, length limits, `extra="forbid"`, score 0-10, vector parsed strictly | ✅ | `VulnerabilityCreate`, `tests/test_cvss.py` |
+| Severity/score inconsistency | Severity derived server-side; v3.x score computed from vector; mismatched client values rejected; legacy rows repaired by migration | ✅ | `cvss.py`, `init_db()` |
+| Stored XSS (incl. data from NVD) | UI builds DOM with `textContent` only; no `innerHTML`; no inline handlers; CSP `script-src 'self'` | ✅ | `static/app.js`, `tests/test_frontend.py` |
+| Third-party script/style/font integrity | Lucide, Inter and compiled Tailwind are vendored and pinned; no CDN requests; CSP has no `unsafe-inline` | ✅ | `static/vendor`, `static/fonts` |
+| Cross-site request forgery (e.g. clear-all) | Writes need `X-Requested-With: VulnTrack` (forces a CORS preflight, which is never granted) plus same-origin `Origin` check; `/api/clear` removed; `DELETE /api/vulnerabilities` also needs `X-Confirm-Clear` | ✅ | `security_gate`, `RequestGate` tests |
+| DNS rebinding against localhost | `Host` header allowlist (127.0.0.1, localhost, ::1, plus `VULNTRACK_ALLOWED_HOSTS`) | ✅ | `test_dns_rebinding_host_rejected` |
+| Unauthenticated network exposure | Launcher refuses non-local bind without `VULNTRACK_TOKEN` (>= 16 chars) and allowed hosts; bearer token compared in constant time | ⚠️ | Bypassable by running `uvicorn` directly; no TLS |
+| Information leakage | Global handler returns generic 500; details logged server-side; feed errors are sanitized | ✅ | `test_errors_do_not_leak_internals` |
+| SSRF via feed clients | Fixed URLs, https only, host allowlist, redirects refused, CVE ID validated before use, size cap and timeout | ✅ | `feeds._http_get_json`, `FeedParsing` tests |
+| Untrusted feed data | Strict parsing; vector re-validated; description truncated to 1000 chars; EPSS/KEV values type-coerced | ✅ | `feeds.parse_nvd` |
+| Abuse / flooding | 120 writes/min and 10 feed calls/min per client IP; 64 KB body cap | ⚠️ | In-memory and per IP, so weak behind a shared proxy |
+| Token storage in browser | Token kept in `sessionStorage` only, sent as `Authorization` header | ⚠️ | Readable by any script on the origin; mitigated by the CSP |
+| CVSS v4.0 correctness | Vectors validated; score not computed locally | ⚠️ | Score must come from NVD or the operator |
+| Feed availability / staleness | Enrichment failures never block import; KEV flag is not cleared when the KEV fetch fails | ✅ | `test_enrich_all_reports_warnings_and_keeps_kev_on_outage` |
 
 ## 5. If exposed beyond localhost
 
-An unauthenticated caller can read, add, and delete all data, and any website the operator visits can wipe the database through `/api/clear`. There is also no TLS, CSP, or request throttling. These are accepted for a local tool and are not accepted for a hosted one.
+Set `VULNTRACK_TOKEN`, `VULNTRACK_ALLOWED_HOSTS`, and terminate TLS in a reverse proxy. Without TLS the bearer token travels in cleartext. Per-IP rate limits will see only the proxy address unless you add proxy-aware handling.
 
-## 6. Roadmap (priority order)
+## 6. Roadmap
 
-1. Bind to `127.0.0.1` explicitly in docs/launch command; refuse non-local binds unless an auth token is configured.
-2. Replace `/api/clear` with `DELETE` that requires a confirmation token and a custom header (blocks cross-site form posts); add an allowed-origin check.
-3. Compute severity from the CVSS base score (and store the vector string); validate v3.1 vs v4.0 explicitly.
-4. Return generic 500 errors; log details server-side.
-5. Pin CDN versions with SRI or vendor the assets; add a CSP.
-6. Add NVD, CISA KEV, and EPSS enrichment; add tests for the above (injection, XSS payloads, clear-abuse).
+1. Compute CVSS v4.0 base scores locally (macrovector lookup).
+2. Scheduled enrichment and a KEV-added alert.
+3. Proxy-aware rate limiting; optional TLS termination.
+4. Export (CSV/SARIF) and per-asset tagging.

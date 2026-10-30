@@ -1,0 +1,7 @@
+__pycache__/
+*.py[cod]
+vulntrack.db
+vulntrack.db-*
+.env
+.venv/
+node_modules/

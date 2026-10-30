@@ -30,7 +30,9 @@ Include, where possible: affected route/file, steps to reproduce, impact, and a 
 In scope:
 - Input validation and injection in the FastAPI API
 - XSS in the dashboard frontend
-- Logic flaws in how severity and scores are stored or displayed
+- Logic flaws in how severity, scores or triage priority are derived, stored or displayed
+- Bypasses of the Host/Origin/CSRF-header checks or the CSP
+- SSRF or unsafe handling of data from the NVD, CISA KEV or EPSS clients
 
 Out of scope:
 - The absence of authentication: this is a single-user local tool and is documented as not safe to expose publicly (see the threat model)
