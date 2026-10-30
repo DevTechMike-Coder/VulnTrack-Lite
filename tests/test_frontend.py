@@ -16,7 +16,7 @@ class FrontendCspGuards(unittest.TestCase):
         html = read("index.html")
         self.assertIsNone(re.search(r"\son[a-z]+\s*=", html), "inline event handler found")
         self.assertIsNone(re.search(r"\sstyle\s*=", html), "inline style attribute found")
-        self.assertIsNone(re.search(r"<script(?![^>]*\bsrc=)[^>]*>", html), "inline <script> found")
+        self.assertIsNone(re.search(r"<script(?![^>]*\bsrc=)[^>]*>", html, flags=re.IGNORECASE), "inline <script> found")
         self.assertNotIn("<style", html)
         self.assertNotRegex(html, r"https?://")  # no third-party origins
 
