@@ -1,81 +1,95 @@
 # VulnTrack Lite 🛡️
 
-A lightweight, standalone security vulnerability tracker designed to serve as an agile, low-resource dashboard for security engineers.
+[![CI](https://github.com/DevTechMike-Coder/VulnTrack-Lite/actions/workflows/ci.yml/badge.svg)](https://github.com/DevTechMike-Coder/VulnTrack-Lite/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/DevTechMike-Coder/VulnTrack-Lite/actions/workflows/codeql.yml/badge.svg)](https://github.com/DevTechMike-Coder/VulnTrack-Lite/actions/workflows/codeql.yml)
+
+A lightweight, single-user vulnerability tracker that answers one question: **what do I patch first?**
+It combines CVSS (how bad), EPSS (how likely to be exploited) and CISA KEV (already exploited) into a triage priority.
 
 > [!NOTE]
-> **AI-Assisted Build:** This project was designed, coded, and verified by **Antigravity**, an AI coding assistant developed by Google DeepMind, in collaboration with the user.
+> **AI-Assisted Build:** This project was designed, coded, and verified by **Antigravity**, an AI coding assistant developed by Google DeepMind, in collaboration with the user. The v1.0 triage, enrichment and hardening work was reviewed against the threat model in [`docs/threat-model.md`](docs/threat-model.md).
 
----
+## Features
 
-## ✨ Features
+- **Priority triage (P0-P3)** derived from CISA KEV, EPSS and CVSS (rules below).
+- **NVD import:** type a CVE ID; CVSS v3.1/v4.0/v3.0 score + vector, description and dates are pulled from NVD.
+- **KEV + EPSS enrichment** on import and via *Refresh intel*.
+- **Derived severity:** severity is computed from the score, never trusted from the client. v3.0/v3.1 base scores are computed from the vector; v4.0 vectors are validated (see limitations).
+- **Hardened by default:** localhost-only, CSRF header + origin check, Host allowlist (DNS-rebinding), strict CSP with no inline script/style and no CDNs, optional bearer token, rate limits, generic 500s.
+- **Zero heavy ORMs:** stdlib `sqlite3`, FastAPI, vanilla JS.
 
-- **Metric Overview Grid:** Real-time summary counts of total, Critical, High, and Medium/Low threats.
-- **Dynamic Data Table:** Interactive table with glowing CVSS indicators, severity badges, and inspect options.
-- **Search & Filters:** Real-time query filtering for CVE IDs, titles, or descriptions, plus severity tab filtering.
-- **Manual Input Modal:** Wizard to manually log new CVE entries with validation checks.
-- **Zero Heavy ORMs:** Built directly on top of Python's standard `sqlite3` driver.
+## Triage rules
 
----
+| Priority | Condition |
+|---|---|
+| **P0 Act now** | Listed in CISA KEV |
+| **P1 Urgent** | EPSS >= 20%, or CVSS >= 9.0 with EPSS >= 5% |
+| **P2 Plan** | CVSS >= 7.0 or EPSS >= 5% |
+| **P3 Routine** | Everything else |
 
-## 🛠️ Architecture
+If EPSS has not been fetched yet, CVSS decides (>= 9.0 -> P1, >= 7.0 -> P2, else P3). Rules live in [`triage.py`](triage.py) and are applied at read time.
 
-- **Backend (`main.py`):** Single FastAPI backend serving static HTML, endpoints, database migrations, and payload validation.
-- **Frontend (`index.html`):** Clean HTML5 structure styled via Tailwind CSS CDN with pure vanilla JavaScript state handling and Lucide icons.
-- **Database (`vulntrack.db`):** Lightweight SQLite database initialized on startup.
-
----
-
-## 🚀 Getting Started
-
-### 1. Installation
-
-Clone or copy this folder structure, navigate to it in your terminal, and install the FastAPI environment dependencies:
+## Getting started
 
 ```bash
-pip install fastapi uvicorn pydantic
+pip install -r requirements.txt
+python main.py            # binds 127.0.0.1:8000
 ```
 
-### 2. Launch the Application
+Open <http://127.0.0.1:8000>. Run the tests with `python run_tests.py`.
 
-Run the local uvicorn server:
+### Configuration (environment variables)
+
+| Variable | Purpose |
+|---|---|
+| `NVD_API_KEY` | Optional NVD API key (raises the NVD rate limit) |
+| `VULNTRACK_DB` | SQLite path (default `./vulntrack.db`) |
+| `VULNTRACK_HOST` / `VULNTRACK_PORT` | Bind address (default `127.0.0.1:8000`) |
+| `VULNTRACK_TOKEN` | Bearer token for `/api/*`. **Required (>= 16 chars)** by `python main.py` for non-local binds |
+| `VULNTRACK_ALLOWED_HOSTS` | Extra allowed `Host` names, comma-separated (required for non-local binds) |
+
+> [!WARNING]
+> Running `uvicorn main:app --host 0.0.0.0` bypasses the launcher guard. This is still a single-user tool with no TLS: put it behind a TLS reverse proxy and set a token if you expose it at all.
+
+## API
+
+| Method | Route | Notes |
+|---|---|---|
+| GET | `/api/vulnerabilities` | Filters: `severity`, `priority` (0-3), `kev` |
+| GET | `/api/vulnerabilities/{cve}` | One record |
+| POST | `/api/vulnerabilities` | `cve_id`, `title`, `description`, and `cvss_vector` and/or `score` |
+| POST | `/api/vulnerabilities/import` | `{"cve_id": "CVE-..."}` from NVD, then KEV/EPSS |
+| POST | `/api/enrich` | Refresh KEV + EPSS for all records |
+| DELETE | `/api/vulnerabilities/{cve}` | Delete one |
+| DELETE | `/api/vulnerabilities` | Clear all; needs header `X-Confirm-Clear: delete-all` |
+
+All non-GET requests must send `X-Requested-With: VulnTrack`. `POST /api/clear` was removed in v1.0 (it was triggerable by a cross-site form post).
+
+## Known limitations
+
+- **CVSS v4.0 scores are not computed locally** (that needs the macrovector lookup tables). v4.0 vectors are validated and the score must be supplied; NVD imports supply it.
+- Enrichment runs only on import and on *Refresh intel*; there is no background scheduler.
+- Records with only CVSS v2 data in NVD are rejected on import.
+- Rate limiting is in-memory and per client IP.
+
+## Project structure
+
+- `main.py` - FastAPI app, DB migration, security middleware, routes
+- `cvss.py` - vector parsing, v3.x calculator, severity bands
+- `triage.py` - priority rules
+- `feeds.py` - NVD / CISA KEV / FIRST EPSS clients (host allowlist, no redirects, size caps)
+- `index.html`, `static/` - dashboard; `static/vendor` and `static/fonts` are vendored (Lucide 0.469.0, Inter)
+- `tests/`, `run_tests.py` - test suite
+- `docs/threat-model.md`, `SECURITY.md` - security documentation
+
+### Rebuilding the CSS
+
+`static/tailwind.css` is compiled and committed. After changing classes in `index.html` or `static/app.js`:
 
 ```bash
-python -m uvicorn main:app --reload
+npx tailwindcss@3.4.17 -c tailwind.config.js -i static/tailwind.input.css -o static/tailwind.css --minify
 ```
 
-Navigate to **[http://127.0.0.1:8000](http://127.0.0.1:8000)** in your browser.
+## License
 
-### 3. Run Automated Tests
-
-Execute the local integration tests using:
-
-```bash
-python run_tests.py
-```
-
----
-
-## 📂 Project Structure
-
-- `main.py` - FastAPI app, database routing, and payload validation.
-- `index.html` - Core HTML dashboard & Tailwind styling.
-- `run_tests.py` - Unit integration test client.
-- `LICENSE` - Project license terms.
-- `vulntrack.db` - SQLite database file (created on startup).
-
----
-
-## 🤝 Contributing
-
-This is a lightweight, zero-bloat project optimized for rapid testing. Contributions that improve efficiency or add standalone features are welcome!
-
-1. Fork the repository.
-2. Create a feature branch: `git checkout -b feature/amazing-feature`
-3. Ensure code uses minimal dependencies (stick to standard Python libraries and vanilla JS where possible).
-4. Commit your changes: `git commit -m 'Add some amazing feature'`
-5. Push to the branch: `git push origin feature/amazing-feature`
-6. Open a Pull Request.
-
-## 📄 License
-
-This project is licensed under the terms of the MIT License. See [LICENSE](file:///C:/Users/personal/Documents/VulnTrack_Lite/LICENSE) for details.
+MIT. See [LICENSE](LICENSE).
