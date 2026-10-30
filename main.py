@@ -328,12 +328,14 @@ def _apply_enrichment(conn, ids: List[str]) -> List[str]:
         kev = feeds.fetch_kev(force=True)
     except feeds.FeedError as e:
         kev = None
-        warnings.append(f"KEV: {e}")
+        log.warning("KEV enrichment failed", exc_info=True)
+        warnings.append("KEV enrichment temporarily unavailable")
     try:
         epss = feeds.fetch_epss(ids)
     except feeds.FeedError as e:
         epss = {}
-        warnings.append(f"EPSS: {e}")
+        log.warning("EPSS enrichment failed", exc_info=True)
+        warnings.append("EPSS enrichment temporarily unavailable")
 
     for cid in ids:
         if kev is not None:
